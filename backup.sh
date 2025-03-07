@@ -7,43 +7,38 @@ LOG_DIR="$BACKUP_DIR/logs"
 LOG_FILE="$LOG_DIR/backup.log"
 VERSION="1.17.1"
 
-# Create log directories if they do not exist
 mkdir -p "$LOG_DIR"
 mkdir -p "$BACKUP_DIR"
 
-# Register the version at the beginning of the log file
 if [ ! -f "$LOG_FILE" ]; then
     echo "Version:$VERSION" >>"$LOG_FILE"
 fi
 
-# File that stores previous backups
 PREV_BACKUPS_FILE="$LOG_DIR/prev_backups.list"
-ls "$BACKUP_DIR" > "$PREV_BACKUPS_FILE" 2>/dev/null
 
 backup() {
     while true; do
         read -p "Do you want to create a backup? (y/n): " confirm
         case $confirm in
-        [Yy]*) break ;;
-        [Nn]*)
-            timestamp=$(date "+%d-%m-%Y %I:%M:%S %p")
-            read -p "Reason for not saving: " reason
-            echo "$timestamp [Ignored] [$reason]" >>"$LOG_FILE"
-            echo "Backup canceled."
-            return 0
-            ;;
-        *) echo "Please enter 'y' or 'n'." ;;
+            [Yy]*) break ;;
+            [Nn]*)
+                timestamp=$(date "+%d-%m-%Y %I:%M:%S %p")
+                read -p "Reason for not saving: " reason
+                echo "$timestamp [Ignored] [$reason]" >>"$LOG_FILE"
+                echo "Backup canceled."
+                return 0
+                ;;
+            *) echo "Please enter 'y' or 'n'."
+		continue;;
         esac
     done
 
     timestamp=$(date "+%d-%m-%Y %I:%M:%S %p")
     read -p "Work done: " work_done
-	backup_name="$(LC_TIME=en_US.UTF-8 date '+%d_%m_%Y_%I_%M_%S_%p')"
+    backup_name="$(LC_TIME=en_US.UTF-8 date '+%d_%m_%Y_%I_%M_%S_%p')"
 
-    # Check if the backup directory already exists
     if [ -d "$BACKUP_DIR/$backup_name" ]; then
-        echo "Error: The backup folder '$backup_name' already exists. Changing name..."
-        backup_name="${backup_name}_$(date '+%S')"  # Add seconds to avoid collision
+        backup_name="${backup_name}_$(date '+%S')"
     fi
 
     mkdir -p "$BACKUP_DIR/$backup_name"
@@ -51,23 +46,21 @@ backup() {
     echo "Backup successfully created at: $BACKUP_DIR/$backup_name"
     echo "$timestamp [Saved] [$work_done]" >>"$LOG_FILE"
 
-    # Detect manually deleted backups
-    current_backups=$(ls "$BACKUP_DIR" 2>/dev/null)
+    # Detect manual deletions
+    echo "Checking for manual deletions..."
     while read -r prev_backup; do
-        if [[ ! -d "$BACKUP_DIR/$prev_backup" ]]; then
-            echo "$timestamp [Deleted] [$prev_backup] (Manual deletion)" >>"$LOG_FILE"
+        if [ ! -d "$prev_backup" ] && [ -n "$prev_backup" ]; then
+            echo "$timestamp [Deleted] [$(basename "$prev_backup")] (Manual deletion)" >>"$LOG_FILE"
+            echo "Detected deleted backup: $(basename "$prev_backup")"
         fi
     done < "$PREV_BACKUPS_FILE"
 
-    # Save the current state of backups
-    ls "$BACKUP_DIR" > "$PREV_BACKUPS_FILE" 2>/dev/null
+    # Automatic deletion (older than 7 days)
+    echo "Checking for automatic deletions..."
+    find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec bash -c 'echo "$1 [Deleted] [$(basename "$0")] (Automatic deletion)" >> "$LOG_FILE"; rm -rf "$0"' {} "$timestamp" \;
 
-    # Delete old backups (older than 7 days) and log them
-    find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d -mtime +7 | while read -r old_backup; do
-        echo "$timestamp [Deleted] [$old_backup] (Automatic deletion)" >>"$LOG_FILE"
-        rm -rf "$old_backup"
-    done
+    # Save state at the END
+    find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d ! -name "logs" | sed 's:/*$::' > "$PREV_BACKUPS_FILE" 2>/dev/null
 }
 
-# Execute backup directly
 backup
