@@ -15,6 +15,10 @@ if [ ! -f "$LOG_FILE" ]; then
     echo "Version:$VERSION" >>"$LOG_FILE"
 fi
 
+# Registrar estado previo de backups
+PREV_BACKUPS_FILE="$LOG_DIR/prev_backups.list"
+ls "$BACKUP_DIR" > "$PREV_BACKUPS_FILE" 2>/dev/null
+
 backup() {
     while true; do
         read -p "Desea crear una copia de seguridad? (y/n): " confirm
@@ -32,8 +36,6 @@ backup() {
     done
 
     timestamp=$(date "+%d-%m-%Y %I:%M:%S %p")
-
-    # Realizar la copia de seguridad
     read -p "Trabajo realizado: " work_done
     backup_name="$(LC_TIME=en_US.UTF-8 date '+%d_%m_%Y_%I_%M_%S_%p')"
 
@@ -44,15 +46,26 @@ backup() {
     fi
 
     mkdir -p "$BACKUP_DIR/$backup_name"
-    
     rsync -a --progress "$WORLD_DIR/" "$BACKUP_DIR/$backup_name/"
-
     echo "Copia de seguridad creada con éxito en: $BACKUP_DIR/$backup_name"
     echo "$timestamp [Guardado] [$work_done]" >>"$LOG_FILE"
 
-    # Eliminar copias de seguridad antiguas (más de 7 días)
-    find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec rm -rf {} +
-    echo "Copias de seguridad antiguas eliminadas."
+    # Detectar eliminaciones manuales
+    current_backups=$(ls "$BACKUP_DIR")
+    while read -r prev_backup; do
+        if [[ ! -d "$BACKUP_DIR/$prev_backup" ]]; then
+            echo "$timestamp [Eliminado] [$prev_backup] (Eliminación manual)" >>"$LOG_FILE"
+        fi
+    done < "$PREV_BACKUPS_FILE"
+
+    # Guardar estado actual de backups
+    ls "$BACKUP_DIR" > "$PREV_BACKUPS_FILE"
+
+    # Eliminar copias de seguridad antiguas (más de 7 días) y registrar en el log
+    find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d -mtime +7 | while read -r old_backup; do
+        echo "$timestamp [Eliminado] [$old_backup] (Eliminación automática)" >>"$LOG_FILE"
+        rm -rf "$old_backup"
+    done
 }
 
 # Ejecutar backup directamente
