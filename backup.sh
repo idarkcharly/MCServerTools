@@ -7,66 +7,67 @@ LOG_DIR="$BACKUP_DIR/logs"
 LOG_FILE="$LOG_DIR/backup.log"
 VERSION="1.17.1"
 
-# Crear directorio de logs si no existe
+# Create log directories if they do not exist
 mkdir -p "$LOG_DIR"
+mkdir -p "$BACKUP_DIR"
 
-# Registrar la versión al inicio del archivo de log
+# Register the version at the beginning of the log file
 if [ ! -f "$LOG_FILE" ]; then
     echo "Version:$VERSION" >>"$LOG_FILE"
 fi
 
-# Registrar estado previo de backups
+# File that stores previous backups
 PREV_BACKUPS_FILE="$LOG_DIR/prev_backups.list"
 ls "$BACKUP_DIR" > "$PREV_BACKUPS_FILE" 2>/dev/null
 
 backup() {
     while true; do
-        read -p "Desea crear una copia de seguridad? (y/n): " confirm
+        read -p "Do you want to create a backup? (y/n): " confirm
         case $confirm in
         [Yy]*) break ;;
         [Nn]*)
-            timestamp=$(date "+%d_%m_%Y_%I_%M_%p")
-            read -p "Motivo de no guardar: " reason
-            echo "$timestamp [Ignorado] [$reason]" >>"$LOG_FILE"
-            echo "Copia de seguridad cancelada."
+            timestamp=$(date "+%d-%m-%Y %I:%M:%S %p")
+            read -p "Reason for not saving: " reason
+            echo "$timestamp [Ignored] [$reason]" >>"$LOG_FILE"
+            echo "Backup canceled."
             return 0
             ;;
-        *) echo "Por favor, ingrese 'y' o 'n'." ;;
+        *) echo "Please enter 'y' or 'n'." ;;
         esac
     done
 
     timestamp=$(date "+%d-%m-%Y %I:%M:%S %p")
-    read -p "Trabajo realizado: " work_done
-    backup_name="$(LC_TIME=en_US.UTF-8 date '+%d_%m_%Y_%I_%M_%S_%p')"
+    read -p "Work done: " work_done
+	backup_name="$(LC_TIME=en_US.UTF-8 date '+%d_%m_%Y_%I_%M_%S_%p')"
 
-    # Verificar si ya existe el directorio
+    # Check if the backup directory already exists
     if [ -d "$BACKUP_DIR/$backup_name" ]; then
-        echo "Error: La carpeta de backup '$backup_name' ya existe. Cambiando nombre..."
-        backup_name="${backup_name}_$(date '+%S')"  # Agregar segundos para evitar colisión
+        echo "Error: The backup folder '$backup_name' already exists. Changing name..."
+        backup_name="${backup_name}_$(date '+%S')"  # Add seconds to avoid collision
     fi
 
     mkdir -p "$BACKUP_DIR/$backup_name"
     rsync -a --progress "$WORLD_DIR/" "$BACKUP_DIR/$backup_name/"
-    echo "Copia de seguridad creada con éxito en: $BACKUP_DIR/$backup_name"
-    echo "$timestamp [Guardado] [$work_done]" >>"$LOG_FILE"
+    echo "Backup successfully created at: $BACKUP_DIR/$backup_name"
+    echo "$timestamp [Saved] [$work_done]" >>"$LOG_FILE"
 
-    # Detectar eliminaciones manuales
-    current_backups=$(ls "$BACKUP_DIR")
+    # Detect manually deleted backups
+    current_backups=$(ls "$BACKUP_DIR" 2>/dev/null)
     while read -r prev_backup; do
         if [[ ! -d "$BACKUP_DIR/$prev_backup" ]]; then
-            echo "$timestamp [Eliminado] [$prev_backup] (Eliminación manual)" >>"$LOG_FILE"
+            echo "$timestamp [Deleted] [$prev_backup] (Manual deletion)" >>"$LOG_FILE"
         fi
     done < "$PREV_BACKUPS_FILE"
 
-    # Guardar estado actual de backups
-    ls "$BACKUP_DIR" > "$PREV_BACKUPS_FILE"
+    # Save the current state of backups
+    ls "$BACKUP_DIR" > "$PREV_BACKUPS_FILE" 2>/dev/null
 
-    # Eliminar copias de seguridad antiguas (más de 7 días) y registrar en el log
+    # Delete old backups (older than 7 days) and log them
     find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d -mtime +7 | while read -r old_backup; do
-        echo "$timestamp [Eliminado] [$old_backup] (Eliminación automática)" >>"$LOG_FILE"
+        echo "$timestamp [Deleted] [$old_backup] (Automatic deletion)" >>"$LOG_FILE"
         rm -rf "$old_backup"
     done
 }
 
-# Ejecutar backup directamente
+# Execute backup directly
 backup
