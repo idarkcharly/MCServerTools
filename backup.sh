@@ -1,8 +1,8 @@
 #!/bin/bash
 
-MINECRAFT_SERVER_DIR="/home/carlos/server"
+MINECRAFT_SERVER_DIR="/home/your/server"
 WORLD_DIR="$MINECRAFT_SERVER_DIR/world"
-BACKUP_DIR="/home/carlos/dataswap/world_backup"
+BACKUP_DIR="/home/your/backup"
 LOG_DIR="$BACKUP_DIR/logs"
 LOG_FILE="$LOG_DIR/backup.log"
 VERSION="1.17.1"
