@@ -26,7 +26,7 @@ mv start.sh backup.sh restore.sh /home/tuusuario/server
 3️⃣ **Dar permisos de ejecución al script:**  
 ```bash
 sudo chown -R tuusuario:tuusuario ~/server
-chmod +x backup.sh start.sh restore
+chmod +x backup.sh start.sh restore.sh
 ```
 
 4️⃣ **Dar inicio al servidor:**  
