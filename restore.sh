@@ -1,50 +1,46 @@
 #!/bin/bash
 
-
 MINECRAFT_SERVER_DIR="/home/carlos/server"
 WORLD_DIR="$MINECRAFT_SERVER_DIR/world"
 BACKUP_DIR="/home/carlos/dataswap/world_backup"
 
-
-# Verificar si existen copias de seguridad
+# Check if backups exist
 
 if [ ! -d "$BACKUP_DIR" ] || [ -z "$(ls -A "$BACKUP_DIR")" ]; then
-    echo "No hay copias de seguridad disponibles en $BACKUP_DIR."
+    echo "No backups available in $BACKUP_DIR."
     exit 1
 fi
 
-
-# Listar copias de seguridad (excluyendo "logs")
-echo "Copias de seguridad disponibles:"
+# List backups (excluding "logs")
+echo "Available backups:"
 mapfile -t BACKUPS < <(find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d ! -name "logs" -printf "%f\n")
 
 if [ ${#BACKUPS[@]} -eq 0 ]; then
-    echo "No hay copias de seguridad disponibles (excepto logs)."
+    echo "No backups available (except logs)."
     exit 1
 fi
 
 select backup in "${BACKUPS[@]}"; do
     if [ -n "$backup" ]; then
         BACKUP_PATH="$BACKUP_DIR/$backup"
-        echo "Restaurando desde: $BACKUP_PATH"
+        echo "Restoring from: $BACKUP_PATH"
         break
     else
-        echo "Selección no válida, intenta de nuevo."
+        echo "Invalid selection, try again."
     fi
 done
 
+# Confirm restoration
 
-# Confirmar restauración
-
-read -p "¿Está seguro de que desea restaurar '$backup' en '$WORLD_DIR'? (y/n): " confirm
+read -p "Are you sure you want to restore '$backup' to '$WORLD_DIR'? (y/n): " confirm
 if [[ "$confirm" =~ ^[Nn]$ ]]; then
-    echo "Restauración cancelada."
+    echo "Restoration canceled."
     exit 0
 fi
 
+# Restore with rsync (excluding "logs")
 
-# Restaurar con rsync (excluyendo "logs")
-
-echo "Restaurando mundo..."
+echo "Restoring world..."
 sudo rsync -av --progress --delete --exclude="logs" "$BACKUP_PATH/" "$WORLD_DIR/"
-echo "Restauración completada con éxito."
+echo "Restoration completed successfully."
+
