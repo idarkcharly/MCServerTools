@@ -1,50 +1,38 @@
 #!/bin/bash
 
-
-MINECRAFT_SERVER_DIR="/home/carlos/server"
-WORLD_DIR="$MINECRAFT_SERVER_DIR/world"
+# Directorio donde se almacenan los backups
 BACKUP_DIR="/home/carlos/dataswap/world_backup"
 
+# Obtener lista de backups excluyendo "logs"
+BACKUPS=($(find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d ! -name "logs" -printf "%T@ %p\n" | sort -nr | cut -d' ' -f2-))
 
-# Verificar si existen copias de seguridad
-
-if [ ! -d "$BACKUP_DIR" ] || [ -z "$(ls -A "$BACKUP_DIR")" ]; then
-    echo "No hay copias de seguridad disponibles en $BACKUP_DIR."
-    exit 1
-fi
-
-
-# Listar copias de seguridad (excluyendo "logs")
-echo "Copias de seguridad disponibles:"
-mapfile -t BACKUPS < <(find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d ! -name "logs" -printf "%f\n")
-
+# Verificar si hay backups disponibles
 if [ ${#BACKUPS[@]} -eq 0 ]; then
-    echo "No hay copias de seguridad disponibles (excepto logs)."
+    echo "No se encontraron backups disponibles."
     exit 1
 fi
 
-select backup in "${BACKUPS[@]}"; do
-    if [ -n "$backup" ]; then
-        BACKUP_PATH="$BACKUP_DIR/$backup"
-        echo "Restaurando desde: $BACKUP_PATH"
-        break
-    else
-        echo "Selección no válida, intenta de nuevo."
-    fi
-done
+# Mostrar el backup más reciente antes del menú de selección
+LATEST_BACKUP=$(basename "${BACKUPS[0]}")
+echo "El backup más reciente es: $LATEST_BACKUP"
 
-
-# Confirmar restauración
-
-read -p "¿Está seguro de que desea restaurar '$backup' en '$WORLD_DIR'? (y/n): " confirm
-if [[ "$confirm" =~ ^[Nn]$ ]]; then
-    echo "Restauración cancelada."
+# Si solo hay un backup, restaurarlo automáticamente
+if [ ${#BACKUPS[@]} -eq 1 ]; then
+    echo "Restaurando automáticamente desde: $LATEST_BACKUP"
+    rsync -a --progress "${BACKUPS[0]}/" "/ruta/del/servidor/minecraft/world/"
+    echo "Restauración completada."
     exit 0
 fi
 
-
-# Restaurar con rsync (excluyendo "logs")
-
-echo "Restaurando mundo..."
-sudo rsync -av --progress --delete --exclude="logs" "$BACKUP_PATH/" "$WORLD_DIR/"
-echo "Restauración completada con éxito."
+# Mostrar backups con el más reciente como opción 1
+echo "Selecciona un backup para restaurar:"
+select backup in "${BACKUPS[@]}"; do
+    if [[ -n "$backup" ]]; then
+        echo "Restaurando desde: $(basename "$backup")"
+        rsync -a --progress "$backup/" "/ruta/del/servidor/minecraft/world/"
+        echo "Restauración completada."
+        break
+    else
+        echo "Selección inválida. Intenta de nuevo."
+    fi
+done
