@@ -1,38 +1,76 @@
 #!/bin/bash
 
-# Directorio donde se almacenan los backups
+# Directory where backups are stored
 BACKUP_DIR="/home/carlos/dataswap/world_backup"
 
-# Obtener lista de backups excluyendo "logs"
+# Get a list of backups excluding "logs"
 BACKUPS=($(find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d ! -name "logs" -printf "%T@ %p\n" | sort -nr | cut -d' ' -f2-))
 
-# Verificar si hay backups disponibles
+# Check if there are available backups
 if [ ${#BACKUPS[@]} -eq 0 ]; then
-    echo "No se encontraron backups disponibles."
+    echo "No backups found."
     exit 1
 fi
 
-# Mostrar el backup más reciente antes del menú de selección
-LATEST_BACKUP=$(basename "${BACKUPS[0]}")
-echo "El backup más reciente es: $LATEST_BACKUP"
+# Main menu: Restore or Delete
+echo "What would you like to do?"
+echo "1) Restore a backup"
+echo "2) Delete backups"
+read -p "Select an option [1-2]: " ACTION
 
-# Si solo hay un backup, restaurarlo automáticamente
-if [ ${#BACKUPS[@]} -eq 1 ]; then
-    echo "Restaurando automáticamente desde: $LATEST_BACKUP"
-    rsync -a --progress "${BACKUPS[0]}/" "/ruta/del/servidor/minecraft/world/"
-    echo "Restauración completada."
-    exit 0
-fi
+case "$ACTION" in
+    1)  # Restore option
+        LATEST_BACKUP=$(basename "${BACKUPS[0]}")
+        echo "The most recent backup is: $LATEST_BACKUP"
 
-# Mostrar backups con el más reciente como opción 1
-echo "Selecciona un backup para restaurar:"
-select backup in "${BACKUPS[@]}"; do
-    if [[ -n "$backup" ]]; then
-        echo "Restaurando desde: $(basename "$backup")"
-        rsync -a --progress "$backup/" "/ruta/del/servidor/minecraft/world/"
-        echo "Restauración completada."
-        break
-    else
-        echo "Selección inválida. Intenta de nuevo."
-    fi
-done
+        # If only one backup exists, restore it automatically
+        if [ ${#BACKUPS[@]} -eq 1 ]; then
+            echo "Automatically restoring from: $LATEST_BACKUP"
+            rsync -a --progress "${BACKUPS[0]}/" "/home/carlos/server/world/"
+            echo "Restore completed."
+            exit 0
+        fi
+
+        # List available backups for selection
+        echo "Select a backup to restore:"
+        select backup in "${BACKUPS[@]}"; do
+            if [[ -n "$backup" ]]; then
+                echo "Restoring from: $(basename "$backup")"
+                rsync -a --progress "$backup/" "/home/carlos/server/world/"
+                echo "Restore completed."
+                break
+            else
+                echo "Invalid selection. Please try again."
+            fi
+        done
+        ;;
+
+    2)  # Delete backups option
+        echo "List of available backups:"
+        for i in "${!BACKUPS[@]}"; do
+            echo "$((i+1))) $(basename "${BACKUPS[$i]}")"
+        done
+
+        read -p "Enter the numbers of the backups to delete (comma-separated): " DELETE_INPUT
+
+        # Convert input to an array and delete selected backups
+        IFS=',' read -ra DELETE_SELECTIONS <<< "$DELETE_INPUT"
+
+        for num in "${DELETE_SELECTIONS[@]}"; do
+            if [[ "$num" =~ ^[0-9]+$ ]] && [ "$num" -ge 1 ] && [ "$num" -le "${#BACKUPS[@]}" ]; then
+                BACKUP_TO_DELETE="${BACKUPS[$((num-1))]}"
+                echo "Deleting: $(basename "$BACKUP_TO_DELETE")"
+                rm -rf "$BACKUP_TO_DELETE"
+            else
+                echo "Invalid number: $num (ignored)."
+            fi
+        done
+
+        echo "Deletion process completed."
+        ;;
+        
+    *)  
+        echo "Invalid option. Exiting."
+        exit 1
+        ;;
+esac
